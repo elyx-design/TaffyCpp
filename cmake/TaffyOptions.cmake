@@ -1,0 +1,20 @@
+include_guard(GLOBAL)
+option(TAFFY_WARNINGS_AS_ERRORS "Treat project C++ warnings as errors" "${PROJECT_IS_TOP_LEVEL}")
+option(TAFFY_SANITIZE "Fatal ASan and UBSan instrumentation on production and tests" OFF)
+function(taffy_project_options target)
+    if(MSVC)
+        target_compile_options(${target} PRIVATE /W4 $<$<BOOL:${TAFFY_WARNINGS_AS_ERRORS}>:/WX>)
+    else()
+        target_compile_options(${target} PRIVATE -Wall -Wextra -Wpedantic
+            $<$<BOOL:${TAFFY_WARNINGS_AS_ERRORS}>:-Werror>)
+    endif()
+    if(TAFFY_SANITIZE)
+        if(NOT CMAKE_CXX_COMPILER_ID MATCHES "^(GNU|Clang|AppleClang)$" OR MSVC)
+            message(FATAL_ERROR "TAFFY_SANITIZE requires GCC or Clang with ASan/UBSan")
+        endif()
+        target_compile_options(${target} PRIVATE -fsanitize=address,undefined,float-cast-overflow
+            -fno-sanitize-recover=all -fno-omit-frame-pointer)
+        target_link_options(${target} PUBLIC -fsanitize=address,undefined,float-cast-overflow
+            -fno-sanitize-recover=all)
+    endif()
+endfunction()

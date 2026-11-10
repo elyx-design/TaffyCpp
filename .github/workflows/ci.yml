@@ -1,0 +1,25 @@
+name: C++ build and tests
+
+on: [push, pull_request]
+
+permissions:
+  contents: read
+
+jobs:
+  native:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+      - name: Build
+        run: cmake --build build --parallel 4
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+      - name: Install
+        run: cmake --install build --prefix "${{ runner.temp }}/taffy-install"
+      - name: Verify installed package
+        run: |
+          cmake -S tests/package_consumer -B build-consumer -DCMAKE_PREFIX_PATH="${{ runner.temp }}/taffy-install"
+          cmake --build build-consumer --parallel 4
+          ctest --test-dir build-consumer --output-on-failure

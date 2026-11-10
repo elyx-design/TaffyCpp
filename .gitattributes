@@ -1,0 +1,4 @@
+* text=auto eol=lf
+# Preserve retained fixture and notice bytes exactly on every platform.
+tests/fixtures/** -text -whitespace
+notices/** -text -whitespace

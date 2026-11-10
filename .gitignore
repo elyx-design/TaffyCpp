@@ -1,0 +1,11 @@
+# Keep all generated builds and fetched dependencies out of source control.
+/build*/
+**/build*/
+/install*/
+/CMakeUserPresets.json
+/CMakeFiles/
+/CMakeCache.txt
+/Testing/
+/compile_commands.json
+*.user
+.DS_Store

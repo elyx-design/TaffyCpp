@@ -1,0 +1,15 @@
+BasedOnStyle: LLVM
+IndentWidth: 4
+ColumnLimit: 100
+PointerAlignment: Left
+AccessModifierOffset: -4
+AllowShortFunctionsOnASingleLine: Empty
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortBlocksOnASingleLine: Never
+AllowShortLambdasOnASingleLine: Empty
+AllowShortLoopsOnASingleLine: false
+AllowShortEnumsOnASingleLine: false
+BreakTemplateDeclarations: Yes
+SeparateDefinitionBlocks: Always
+MaxEmptyLinesToKeep: 1
+SortIncludes: CaseSensitive

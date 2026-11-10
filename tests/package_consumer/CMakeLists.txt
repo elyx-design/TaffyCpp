@@ -1,0 +1,7 @@
+cmake_minimum_required(VERSION 3.25)
+project(taffy_package_consumer LANGUAGES CXX)
+find_package(taffy_cpp CONFIG REQUIRED)
+add_executable(package_consumer ../package_shared_constants.cpp)
+target_link_libraries(package_consumer PRIVATE taffy::taffy)
+enable_testing()
+add_test(NAME installed_consumer COMMAND package_consumer)
