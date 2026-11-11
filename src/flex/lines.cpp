@@ -1,6 +1,7 @@
 #include "internal.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <limits>
 #include <stdexcept>
 
@@ -118,10 +119,20 @@ void fill_row(const Row& row, std::vector<double>& cur, std::span<std::size_t> o
 AvailableSpace wrapping_space(const AlgoConstants& c, Size<AvailableSpace> available) {
     const auto main = available.main(c.dir);
     if (const auto max_size = c.max_size.main(c.dir)) {
-        float limit = main.into_option().value_or(*max_size);
+        // Available space is already content-box sized; min/max are outer sizes.
+        const float inset = c.content_box_inset.main_axis_sum(c.dir);
+        const auto inner_limit = [inset](float size) {
+            const float inner = size - inset;
+            // f32_min/max ignore a NaN constraint when the other operand is
+            // numeric. Do not turn that constraint into a real zero limit here.
+            return std::isnan(inner) ? inner : f32_max(inner, 0.0f);
+        };
+        const float inner_max = inner_limit(*max_size);
+        const auto inner_min = c.min_size.main(c.dir).transform(inner_limit);
+        float limit = main.into_option().value_or(inner_max);
         if (!c.has_definite_main_size)
-            limit = f32_min(limit, *max_size);
-        return AvailableSpace::definite(maybe_max(limit, c.min_size.main(c.dir)));
+            limit = f32_min(limit, inner_max);
+        return AvailableSpace::definite(maybe_max(limit, inner_min));
     }
     if (!is_row(c.dir) && !c.has_definite_main_size && main.is_definite())
         return AvailableSpace::max_content();

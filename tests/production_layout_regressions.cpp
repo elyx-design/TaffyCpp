@@ -312,3 +312,123 @@ TEST_CASE("Production flex snapshots child ids once per pass for default adapter
         near(output.size.width, 10000);
     }
 }
+
+TEST_CASE("Production flex wrapping resolves outer limits in content space",
+          "[production][flex][wrap-insets]") {
+    for (auto dir : {FlexDirection::Row, FlexDirection::Column}) {
+        for (float border : {0.0f, 3.0f}) {
+            for (float scrollbar : {0.0f, 10.0f}) {
+                for (int sizing : {0, 1, 2}) {
+                    CAPTURE(dir, border, scrollbar, sizing);
+                    Tree tree;
+                    auto child_style = box(is_row(dir) ? 40 : 20, is_row(dir) ? 20 : 40);
+                    child_style.flex_shrink = 0;
+                    const auto first = tree.new_leaf(child_style).value();
+                    const auto second = tree.new_leaf(child_style).value();
+                    Style style;
+                    style.display = Display::Flex;
+                    style.box_sizing = BoxSizing::BorderBox;
+                    style.flex_direction = dir;
+                    style.flex_wrap = FlexWrap::Wrap;
+                    style.align_items = AlignItems::start();
+                    style.align_content = AlignContent::start();
+                    style.padding = Rect<LengthPercentage>::from_length(
+                        10 - border, 10 - border, 10 - border, 10 - border);
+                    style.border = Rect<LengthPercentage>::from_length(border, border, border, border);
+                    style.gap.set_main(dir, LengthPercentage::length(10));
+                    style.max_size.set_main(dir, LengthPercentageAuto::length(100));
+                    style.scrollbar_width = scrollbar;
+                    if (is_row(dir)) style.overflow.y = Overflow::Scroll;
+                    else style.overflow.x = Overflow::Scroll;
+                    if (sizing == 1) style.size.set_main(dir, Dimension::length(100));
+                    if (sizing == 2) style.min_size.set_main(dir, LengthPercentageAuto::length(100));
+                    const auto root = tree.new_with_children(style, std::vector{first, second}).value();
+                    REQUIRE(tree.compute_layout(root, Size<AvailableSpace>::max_content()).has_value());
+                    // 90px of items/gap cannot fit the 80px (or 70px with a
+                    // scrollbar) content space. Both axes must form two lines.
+                    near(tree.layout(root).size.main(dir), 100);
+                    near(tree.layout(root).size.cross(dir), 60);
+                    near(tree.layout(first).location.x, 10);
+                    near(tree.layout(first).location.y, 10);
+                    near(tree.layout(second).location.x, is_row(dir) ? 10 : 30);
+                    near(tree.layout(second).location.y, is_row(dir) ? 30 : 10);
+                }
+            }
+        }
+    }
+}
+
+TEST_CASE("Production capped flex roots still hug content below the limit",
+          "[production][flex][wrap-insets]") {
+    for (auto dir : {FlexDirection::Row, FlexDirection::Column}) {
+        CAPTURE(dir);
+        Tree tree;
+        auto child_style = box(is_row(dir) ? 40 : 20, is_row(dir) ? 20 : 40);
+        child_style.flex_shrink = 0;
+        const auto child = tree.new_leaf(child_style).value();
+        Style style;
+        style.display = Display::Flex;
+        style.flex_direction = dir;
+        style.flex_wrap = FlexWrap::Wrap;
+        style.padding = Rect<LengthPercentage>::from_length(10, 10, 10, 10);
+        style.max_size.set_main(dir, LengthPercentageAuto::length(100));
+        const auto root = tree.new_with_children(style, std::vector{child}).value();
+        REQUIRE(tree.compute_layout(root, Size<AvailableSpace>::max_content()).has_value());
+        near(tree.layout(root).size.main(dir), 60);
+        near(tree.layout(root).size.cross(dir), 40);
+    }
+}
+
+TEST_CASE("Production early intrinsic flex sizing still finalizes percentage gaps",
+          "[production][flex][intrinsic-finalization]") {
+    for (auto dir : {FlexDirection::Row, FlexDirection::Column}) {
+        CAPTURE(dir);
+        Tree tree;
+        auto child_style = box(is_row(dir) ? 20 : 10, is_row(dir) ? 10 : 20);
+        child_style.flex_shrink = 0;
+        const auto first = tree.new_leaf(child_style).value();
+        const auto second = tree.new_leaf(child_style).value();
+        Style style;
+        style.display = Display::Flex;
+        style.flex_direction = dir;
+        style.flex_wrap = FlexWrap::Wrap;
+        style.gap.set_main(dir, LengthPercentage::percent(0.1f));
+        style.max_size.set_main(dir, LengthPercentageAuto::length(100));
+        const auto root = tree.new_with_children(style, std::vector{first, second}).value();
+        REQUIRE(tree.compute_layout(root, Size<AvailableSpace>::max_content()).has_value());
+        // The cyclic gap contributes zero to the 40px intrinsic size, then
+        // finalization resolves 10% of that inner size to a 4px used gap.
+        near(tree.layout(root).size.main(dir), 40);
+        const auto second_position = tree.layout(second).location;
+        near(is_row(dir) ? second_position.x : second_position.y, 24);
+    }
+}
+
+TEST_CASE("Production early intrinsic flex sizing preserves capped outer size below scrollbar insets",
+          "[production][flex][intrinsic-finalization]") {
+    for (auto dir : {FlexDirection::Row, FlexDirection::Column}) {
+        for (float padding : {0.0f, 10.0f}) {
+            CAPTURE(dir, padding);
+            Tree tree;
+            auto child_style = box(is_row(dir) ? 20 : 10, is_row(dir) ? 10 : 20);
+            child_style.flex_shrink = 0;
+            const auto child = tree.new_leaf(child_style).value();
+            Style style;
+            style.display = Display::Flex;
+            style.box_sizing = BoxSizing::BorderBox;
+            style.flex_direction = dir;
+            style.flex_wrap = FlexWrap::Wrap;
+            style.padding = Rect<LengthPercentage>::from_length(padding, padding, padding, padding);
+            style.scrollbar_width = 10;
+            if (is_row(dir)) style.overflow.y = Overflow::Scroll;
+            else style.overflow.x = Overflow::Scroll;
+            const float maximum = 2 * padding + 5;
+            style.max_size.set_main(dir, LengthPercentageAuto::length(maximum));
+            const auto root = tree.new_with_children(style, std::vector{child}).value();
+            REQUIRE(tree.compute_layout(root, Size<AvailableSpace>::max_content()).has_value());
+            // Inner size is clamped to zero. Reconstructing outer size as
+            // inner + insets would incorrectly produce 10px / 30px here.
+            near(tree.layout(root).size.main(dir), maximum);
+        }
+    }
+}

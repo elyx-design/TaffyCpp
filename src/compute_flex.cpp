@@ -34,13 +34,25 @@ LayoutOutput preliminary(LayoutTree& tree, NodeId node, const LayoutInput& input
     const auto available =
         determine_available_space(input.known_dimensions, input.available_space, c);
     determine_flex_base_size(tree, c, available, items);
+    const auto known_main_size = c.node_inner_size.main(c.dir);
+    // Resolve capped max-content sizing from the unwrapped contributions. Doing
+    // this after line collection would shrink the container to its wrapped lines
+    // instead of retaining the intrinsic size clamped by the maximum.
+    const bool intrinsic_before_wrap = c.is_wrap && !c.is_balance &&
+        !known_main_size.has_value() && c.max_size.main(c.dir).has_value() &&
+        available.main(c.dir).is_max_content();
+    if (intrinsic_before_wrap) {
+        std::vector<FlexLine> intrinsic_lines{{std::span<FlexItem>{items}, 0.0f, 0.0f}};
+        determine_container_main_size(tree, available, intrinsic_lines, c);
+    }
     auto lines = c.is_balance ? collect_balanced_flex_lines(c, available, items)
                               : collect_flex_lines(c, available, items);
-    if (const auto main = c.node_inner_size.main(c.dir)) {
-        c.inner_container_size.set_main(c.dir, *main);
-        c.container_size.set_main(c.dir, *main + c.content_box_inset.main_axis_sum(c.dir));
+    if (known_main_size) {
+        c.inner_container_size.set_main(c.dir, *known_main_size);
+        c.container_size.set_main(c.dir, *known_main_size + c.content_box_inset.main_axis_sum(c.dir));
     } else {
-        determine_container_main_size(tree, available, lines, c);
+        if (!intrinsic_before_wrap)
+            determine_container_main_size(tree, available, lines, c);
         c.node_inner_size.set_main(c.dir, c.inner_container_size.main(c.dir));
         c.node_outer_size.set_main(c.dir, c.container_size.main(c.dir));
         const auto style = tree.flex_container_style(node);

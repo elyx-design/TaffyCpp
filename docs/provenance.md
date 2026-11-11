@@ -55,3 +55,21 @@ corrections, not only a literal translation of the upstream pin. This extraction
 does not add algorithm fixes or resolve deferred CSS behavior. See
 [known issues](known-issues.md). Historical test results are source-bound, not
 fresh verification of every future change or every platform.
+
+### Post-port fix: capped intrinsic flex wrapping
+
+This is an additive correctness fix, not part of the original upstream-to-C++
+translation:
+
+- Convert outer min/max sizes to content-space wrapping limits by subtracting
+  padding, borders and scrollbar insets, while preserving NaN comparison semantics.
+- Resolve capped max-content sizing before wrapping so the container retains its
+  intrinsic outer size clamped by the maximum.
+- Preserve whether the main size was originally known, so early intrinsic sizing
+  still finalizes percentage gaps and does not reconstruct an outer size from a
+  zero-clamped inner size.
+
+Implementation: `src/flex/lines.cpp` and `src/compute_flex.cpp`. Regression tests
+are in `tests/production_layout_regressions.cpp`, tagged `[wrap-insets]` and
+`[intrinsic-finalization]`. These targeted tests do not establish general flexbox
+or CSS conformance.
