@@ -17,26 +17,28 @@
 #include <stdexcept>
 #include <type_traits>
 #include <unordered_map>
+
+// Visibility-only test instrumentation, analogous to occupancy_named_instrument.py.
+// CellOccupancy befriends this struct so the backend can observe the actual native
+// track lists without redefining private, copying layouts, or introducing a second
+// occupancy engine. (An explicit-instantiation friend-injection trick was used
+// previously, but MSVC cannot deduce the injected friend's return type: C3779.)
+struct taffy::grid::CellOccupancyTestAccess {
+    using Track = CellOccupancy::TrackIntervals;
+    static const std::vector<Track>& lists(const CellOccupancy& matrix, AbsoluteAxis axis) {
+        return matrix.track_lists(axis);
+    }
+};
 #include <variant>
 
 namespace {
 using namespace taffy;
 using namespace taffy::grid;
 
-// Visibility-only test instrumentation, analogous to occupancy_named_instrument.py.
-// Explicit instantiation may name private members (C++ [temp.explicit]); this
-// obtains the actual native track lists without changing class definitions/ODR,
-// redefining private, copying layouts, or introducing a second occupancy engine.
-struct TrackListsTag { friend auto native_track_lists(TrackListsTag); };
-template<auto Member> struct ExposeTrackLists {
-    friend auto native_track_lists(TrackListsTag) { return Member; }
-};
-template struct ExposeTrackLists<&CellOccupancy::track_lists>;
 const auto& lists(const CellOccupancy& matrix, AbsoluteAxis axis) {
-    return (matrix.*native_track_lists(TrackListsTag{}))(axis);
+    return CellOccupancyTestAccess::lists(matrix, axis);
 }
-using NativeTrack = typename std::remove_cvref_t<decltype(lists(
-    std::declval<const CellOccupancy&>(), AbsoluteAxis::Horizontal))>::value_type;
+using NativeTrack = CellOccupancyTestAccess::Track;
 
 struct InvalidInput {};
 void require(bool value) { if (!value) throw InvalidInput{}; }

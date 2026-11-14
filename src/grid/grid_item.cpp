@@ -181,17 +181,17 @@ OptionalSize GridItem::known_dimensions(LayoutTree& tree, OptionalSize area) con
             width = remaining.width;
     }
     auto stretched = OptionalSize{width, inherent.height}.maybe_apply_aspect_ratio(aspect_ratio);
-    auto height = stretched.height;
-    if (!height) {
+    auto stretched_height = stretched.height;
+    if (!stretched_height) {
         if (size.height.is_sizing_keyword()) {
             auto r = resolve_sizing_keyword(size.height, remaining.height, area.height, calc);
             if (r && r->kind == SizingKeywordResolution::Kind::Exact)
-                height = r->exact;
+                stretched_height = r->exact;
         } else if (!margin.top.is_auto() && !margin.bottom.is_auto() &&
                    is_stretch_aligned(align_self))
-            height = remaining.height;
+            stretched_height = remaining.height;
     }
-    return OptionalSize{stretched.width, height}
+    return OptionalSize{stretched.width, stretched_height}
         .maybe_apply_aspect_ratio(aspect_ratio)
         .maybe_clamp(minimum, maximum);
 }
@@ -201,7 +201,7 @@ OptionalSize GridItem::grid_area_size(AbstractAxis a, std::span<const GridTrack>
                                       const TrackSizeEstimate& estimate,
                                       const CalcResolver& calc) const {
     OptionalSize result{};
-    std::optional<float> sum = 0;
+    std::optional<float> sum = 0.0f;
     for (const auto& t : spanned_tracks(a, tracks)) {
         auto min = t.min_track_sizing_function.definite_value(available.get(a), calc);
         // Rust's Option sum short-circuits at the first indefinite track.
@@ -217,7 +217,7 @@ OptionalSize GridItem::grid_area_size(AbstractAxis a, std::span<const GridTrack>
         *sum += t.base_size;
     }
     result.set(a, sum);
-    sum = 0;
+    sum = 0.0f;
     for (const auto& t : spanned_tracks(other(a), others)) {
         auto s = estimate(t, available.get(other(a)));
         if (!s) {
@@ -331,7 +331,7 @@ float GridItem::minimum_contribution(LayoutTree& tree, AbstractAxis a,
         if (min.is_auto() && max.is_auto())
             return *preferred;
         auto basis = area.get(a);
-        auto max_basis = is_replaced && !basis ? std::optional<float>(0) : basis;
+        auto max_basis = is_replaced && !basis ? std::optional<float>(0.0f) : basis;
         return maybe_clamp(*preferred, maybe_add(min.maybe_resolve(basis, calc), adjustment.get(a)),
                            maybe_add(max.maybe_resolve(max_basis, calc), adjustment.get(a)));
     }

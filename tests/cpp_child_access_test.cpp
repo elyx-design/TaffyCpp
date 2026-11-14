@@ -81,7 +81,14 @@ int main() {
         chain.add_child(next, child).value();
         child = next;
     }
-    if (allocations - before > 3 * chain_size) {
+#if defined(_ITERATOR_DEBUG_LEVEL) && _ITERATOR_DEBUG_LEVEL > 0
+    // MSVC debug iterators heap-allocate a proxy for every container (~54 allocations
+    // per node, still linear). A quadratic visited set would need millions here.
+    constexpr std::size_t allocations_per_node = 64;
+#else
+    constexpr std::size_t allocations_per_node = 3;
+#endif
+    if (allocations - before > allocations_per_node * chain_size) {
         std::fputs("FAIL: bottom-up construction exceeded linear allocation budget\n", stderr);
         return 1;
     }
@@ -95,7 +102,7 @@ int main() {
     bool failed = false;
     try {
         reject_allocations = true;
-        topology.remove(middle).value();
+        (void)topology.remove(middle).value();
         reject_allocations = false;
     } catch (const std::bad_alloc&) {
         reject_allocations = false;
@@ -112,7 +119,7 @@ int main() {
         std::fputs("FAIL: allocation failure corrupted removal topology\n", stderr);
         return 1;
     }
-    topology.remove(middle).value();
+    (void)topology.remove(middle).value();
     if (topology.contains(middle) || topology.parent(grandchild) || topology.child_count(root)) {
         std::fputs("FAIL: removal did not recover after allocation failure\n", stderr);
         return 1;

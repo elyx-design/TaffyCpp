@@ -42,8 +42,8 @@ ExplicitGridAxis compute_explicit_grid_size_in_axis(const Style& style, std::opt
             else
                 non_auto_count = add_saturating(
                     non_auto_count, std::uint32_t(repeat.count.value()) * repeat.track_count());
-            for (const auto& track : repeat.tracks)
-                all_fixed = all_fixed && track.has_fixed_component();
+            for (const auto& repeated : repeat.tracks)
+                all_fixed = all_fixed && repeated.has_fixed_component();
         }
     }
     non_auto_count = std::min<std::uint32_t>(non_auto_count, max_grid_tracks);
@@ -78,8 +78,8 @@ ExplicitGridAxis compute_explicit_grid_size_in_axis(const Style& style, std::opt
                 if (repeat.count.is_auto())
                     continue;
                 float sum = 0;
-                for (const auto& track : repeat.tracks)
-                    sum += track_definite_value(track, size, calc);
+                for (const auto& repeated : repeat.tracks)
+                    sum += track_definite_value(repeated, size, calc);
                 non_repeating_space += sum * float(repeat.count.value());
             }
         }

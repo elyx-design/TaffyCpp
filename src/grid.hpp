@@ -351,6 +351,10 @@ enum class CellOccupancyState : std::uint8_t {
  * Queries outside recorded tracks see no occupancy. No thread synchronization.
  */
 class CellOccupancy {
+    // Test-only inspection hook, defined by tests/cpp_backend/private_occupancy_backend.cpp.
+    // Declared unconditionally so the class definition is identical in every TU (ODR).
+    friend struct CellOccupancyTestAccess;
+
     struct Interval {
         Line<std::int32_t> range;
         CellOccupancyState state;

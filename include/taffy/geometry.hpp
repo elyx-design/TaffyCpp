@@ -109,26 +109,6 @@ struct Line;
 template <class T>
 struct Rect;
 
-namespace detail {
-template <class T>
-inline constexpr Size<T> size_zero{zero_value<T>(), zero_value<T>()};
-template <class T>
-inline constexpr Size<T> size_none{};
-template <class T>
-inline constexpr Point<T> point_zero{zero_value<T>(), zero_value<T>()};
-template <class T>
-inline constexpr Point<T> point_none{};
-template <class T>
-inline constexpr Rect<T> rect_zero{zero_value<T>(), zero_value<T>(), zero_value<T>(),
-                                   zero_value<T>()};
-template <class T>
-inline constexpr Rect<T> rect_none{};
-template <class T>
-inline constexpr Line<T> line_true{T{true}, T{true}};
-template <class T>
-inline constexpr Line<T> line_false{T{false}, T{false}};
-} // namespace detail
-
 /** @brief Forward optional resolution to the scalar domain type.
  * The domain controls units, percentage bases, unresolved values and exceptions;
  * context and additional arguments are borrowed only for this call.
@@ -193,10 +173,11 @@ struct Size {
     T height{}; ///< Vertical extent/value.
     /// Compare components exactly using T's equality (no approximate float comparison).
     [[nodiscard]] constexpr bool operator==(const Size&) const = default;
-    static constexpr const Size& ZERO =
-        detail::size_zero<T>; ///< Shared zero_value components (T::zero() or T{0}).
-    static constexpr const Size& NONE =
-        detail::size_none<T>; ///< Shared value-initialized components; empty for optional T.
+    // Shared constants are defined after the class so that they are only instantiated
+    // when used, and only once Size<T> is complete (MSVC instantiates in-class
+    // initializers of static members eagerly).
+    static const Size ZERO; ///< Shared zero_value components (T::zero() or T{0}).
+    static const Size NONE; ///< Shared value-initialized components; empty for optional T.
 
     /// Construct two domain zeros, using T::zero() when available, otherwise T{0}.
     [[nodiscard]] static constexpr Size zero() {
@@ -526,6 +507,11 @@ struct Size {
     }
 };
 
+template <class T>
+constexpr Size<T> Size<T>::ZERO{detail::zero_value<T>(), detail::zero_value<T>()};
+template <class T>
+constexpr Size<T> Size<T>::NONE{};
+
 /** @brief Owned physical x/y coordinate pair; the caller defines origin and units.
  * Default fields are value-initialized; optional absence is not zero. Abstract
  * axes assume horizontal writing. Row/column select x/y even in reverse directions.
@@ -533,11 +519,10 @@ struct Size {
  */
 template <class T>
 struct Point {
-    T x{};                                                      ///< Horizontal coordinate/value.
-    T y{};                                                      ///< Vertical coordinate/value.
-    static constexpr const Point& ZERO = detail::point_zero<T>; ///< Shared domain-zero coordinates.
-    static constexpr const Point& NONE =
-        detail::point_none<T>; ///< Shared value-initialized coordinates (empty if optional).
+    T x{};                   ///< Horizontal coordinate/value.
+    T y{};                   ///< Vertical coordinate/value.
+    static const Point ZERO; ///< Shared domain-zero coordinates (defined after the class).
+    static const Point NONE; ///< Shared value-initialized coordinates (empty if optional).
     /// Compare x/y exactly using T's equality.
     [[nodiscard]] constexpr bool operator==(const Point&) const = default;
 
@@ -626,6 +611,11 @@ struct Point {
     }
 };
 
+template <class T>
+constexpr Point<T> Point<T>::ZERO{detail::zero_value<T>(), detail::zero_value<T>()};
+template <class T>
+constexpr Point<T> Point<T>::NONE{};
+
 /** @brief Owned start/end pair on a caller-selected axis, with caller-defined units.
  * This can represent endpoints, edge thicknesses, or flags; sum() is arithmetic
  * addition, not an endpoint distance. Components default to value-initialized T.
@@ -633,10 +623,10 @@ struct Point {
  */
 template <class T>
 struct Line {
-    T start{};                                                  ///< Start endpoint/value.
-    T end{};                                                    ///< End endpoint/value.
-    static constexpr const Line& TRUE = detail::line_true<T>;   ///< Shared pair of T{true} values.
-    static constexpr const Line& FALSE = detail::line_false<T>; ///< Shared pair of T{false} values.
+    T start{};               ///< Start endpoint/value.
+    T end{};                 ///< End endpoint/value.
+    static const Line TRUE;  ///< Shared pair of T{true} values (defined after the class).
+    static const Line FALSE; ///< Shared pair of T{false} values (defined after the class).
     /// Compare both endpoints/values using T's equality.
     [[nodiscard]] constexpr bool operator==(const Line&) const = default;
 
@@ -665,6 +655,11 @@ struct Line {
     }
 };
 
+template <class T>
+constexpr Line<T> Line<T>::TRUE{T{true}, T{true}};
+template <class T>
+constexpr Line<T> Line<T>::FALSE{T{false}, T{false}};
+
 /** @brief Owned physical edges in left, right, top, bottom order (not CSS shorthand).
  * Context determines whether fields are edge coordinates or inset thicknesses,
  * and determines their units/origin. union_() specifically requires coordinates;
@@ -675,13 +670,12 @@ struct Line {
  */
 template <class T>
 struct Rect {
-    T left{};   ///< Physical left edge coordinate or thickness.
-    T right{};  ///< Physical right edge coordinate or thickness.
-    T top{};    ///< Physical top edge coordinate or thickness.
-    T bottom{}; ///< Physical bottom edge coordinate or thickness.
-    static constexpr const Rect& ZERO = detail::rect_zero<T>; ///< Shared domain-zero edges.
-    static constexpr const Rect& NONE =
-        detail::rect_none<T>; ///< Shared value-initialized edges (empty if optional).
+    T left{};               ///< Physical left edge coordinate or thickness.
+    T right{};              ///< Physical right edge coordinate or thickness.
+    T top{};                ///< Physical top edge coordinate or thickness.
+    T bottom{};             ///< Physical bottom edge coordinate or thickness.
+    static const Rect ZERO; ///< Shared domain-zero edges (defined after the class).
+    static const Rect NONE; ///< Shared value-initialized edges (empty if optional).
     /// Compare all four edges exactly using T's equality.
     [[nodiscard]] constexpr bool operator==(const Rect&) const = default;
 
@@ -888,6 +882,12 @@ struct Rect {
         return splat(T::auto_());
     }
 };
+
+template <class T>
+constexpr Rect<T> Rect<T>::ZERO{detail::zero_value<T>(), detail::zero_value<T>(),
+                                detail::zero_value<T>(), detail::zero_value<T>()};
+template <class T>
+constexpr Rect<T> Rect<T>::NONE{};
 
 /// Owned minimum/maximum values, possibly of different types; ordering is not validated.
 template <class Min, class Max = Min>
