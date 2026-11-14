@@ -12,6 +12,13 @@
 #include <type_traits>
 #include <utility>
 
+// <windows.h> defines TRUE and FALSE as macros, which would rewrite Line<T>::TRUE and
+// Line<T>::FALSE below. Suspend them for this header and restore them at its end.
+#pragma push_macro("TRUE")
+#pragma push_macro("FALSE")
+#undef TRUE
+#undef FALSE
+
 namespace taffy {
 
 /// Physical axes: Horizontal is x/width/left-right, Vertical is y/height/top-bottom.
@@ -981,3 +988,6 @@ template <class T, class U, class V>
 }
 
 } // namespace taffy
+
+#pragma pop_macro("FALSE")
+#pragma pop_macro("TRUE")
