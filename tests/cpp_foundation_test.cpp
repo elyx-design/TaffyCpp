@@ -1257,7 +1257,7 @@ TEST_CASE("native tree owns move-only contexts and never revives stale handles",
         tree.set_node_context(node, std::make_unique<DropContext>(drops)).value();
         CHECK(drops == 1);
         CHECK(tree.node_context(node) != nullptr);
-        tree.remove(node).value();
+        (void)tree.remove(node).value();
         CHECK(drops == 2); CHECK_FALSE(tree.contains(node)); CHECK(tree.node_context(node) == nullptr);
         CHECK_THROWS_AS(tree.style(node), NodeAccessError);
         CHECK_THROWS_AS(tree.remove(node), NodeAccessError);
@@ -1276,7 +1276,7 @@ TEST_CASE("native tree owns move-only contexts and never revives stale handles",
         CHECK_FALSE(tree.disjoint_node_contexts(duplicate));
         const std::array invalid{stale};
         CHECK_FALSE(tree.disjoint_node_contexts(invalid));
-        tree.new_leaf_with_context({}, std::make_unique<DropContext>(drops)).value();
+        (void)tree.new_leaf_with_context({}, std::make_unique<DropContext>(drops)).value();
         Tree moved = std::move(tree);
         CHECK(moved.contains(owned)); CHECK(tree.total_node_count() == 0);
     }
@@ -1313,7 +1313,7 @@ TEST_CASE("native child mutation ordering reparenting and error categories are o
     CHECK(tree.children(p).value() == std::vector<NodeId>{c});
     tree.remove_children_range(q, 0, 1).value();
     CHECK_FALSE(tree.parent(c));
-    tree.remove(q).value(); CHECK_FALSE(tree.parent(a)); CHECK(tree.contains(a));
+    (void)tree.remove(q).value(); CHECK_FALSE(tree.parent(a)); CHECK(tree.contains(a));
     CHECK_THROWS_AS(tree.add_child(p, p), TreePanic);
     const std::array parent_child{p};
     auto root = tree.new_with_children({}, parent_child).value();
@@ -1356,14 +1356,14 @@ TEST_CASE("native tree deterministic mutation sequences preserve live relationsh
             const auto index = rng() % children.size();
             const auto removed = tree.remove_child_at_index(parent, index).value();
             CHECK(removed == children[index]); CHECK_FALSE(tree.parent(removed));
-            tree.remove(removed).value();
+            (void)tree.remove(removed).value();
             children.erase(children.begin() + static_cast<std::ptrdiff_t>(index));
         } else if (op == 2) {
             const auto index = rng() % children.size();
             const auto old = children[index];
             const auto replacement = tree.new_leaf().value();
             CHECK(tree.replace_child_at_index(parent, index, replacement).value() == old);
-            CHECK_FALSE(tree.parent(old)); tree.remove(old).value(); children[index] = replacement;
+            CHECK_FALSE(tree.parent(old)); (void)tree.remove(old).value(); children[index] = replacement;
         } else {
             std::reverse(children.begin(), children.end());
             tree.set_children(parent, children).value();
@@ -1581,10 +1581,10 @@ TEST_CASE("native Tree indexed child reads track mutations and reject invalid ac
     CHECK_THROWS_AS(view.child_id(parent, 2), std::out_of_range);
     tree.set_children(parent, std::array{second, first}).value();
     CHECK(view.child_id(parent, 0) == second);
-    tree.remove_child(parent, first).value();
+    (void)tree.remove_child(parent, first).value();
     CHECK(view.child_count(parent) == 1);
     CHECK(view.child_id(parent, 0) == second);
-    tree.remove(parent).value();
+    (void)tree.remove(parent).value();
     CHECK_THROWS_AS(view.child_count(parent), NodeAccessError);
     CHECK_THROWS_AS(view.child_id(parent, 0), NodeAccessError);
 }

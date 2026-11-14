@@ -85,7 +85,7 @@ constexpr bool is_scroll_container(Overflow value) {
 
 /// Scroll containers have zero automatic minimum size; others defer to content sizing.
 constexpr std::optional<float> maybe_into_automatic_min_size(Overflow value) {
-    return is_scroll_container(value) ? std::optional<float>(0) : std::nullopt;
+    return is_scroll_container(value) ? std::optional<float>(0.0f) : std::nullopt;
 }
 
 /// Which out-of-flow positioning schemes may use this box as their containing block.

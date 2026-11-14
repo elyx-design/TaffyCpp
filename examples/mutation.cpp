@@ -36,7 +36,7 @@ int main() {
     auto bad_index = tree.child_at_index(root, 99);
     if (!bad_index)
         std::cout << "expected error: " << bad_index.error().message() << '\n';
-    tree.remove(child).value(); // Removes only this node; its ID is now stale.
+    (void)tree.remove(child).value(); // Removes only this node; its ID is now stale.
     try {
         (void)tree.layout(child);
         throw std::runtime_error("stale ID was accepted");

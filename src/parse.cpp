@@ -1188,8 +1188,8 @@ float native_number(std::string_view value) {
     if (!numeric.empty() &&
         (digit(static_cast<unsigned char>(numeric.front())) || numeric.front() == '.')) {
         float scalar{};
-        auto [end, ec] = std::from_chars(raw.data(), raw.data() + raw.size(), scalar);
-        if (end == raw.data() + raw.size()) {
+        auto [parsed_end, ec] = std::from_chars(raw.data(), raw.data() + raw.size(), scalar);
+        if (parsed_end == raw.data() + raw.size()) {
             if (ec == std::errc{})
                 return scalar;
             if (ec == std::errc::result_out_of_range) {

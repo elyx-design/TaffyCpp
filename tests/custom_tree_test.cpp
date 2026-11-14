@@ -123,9 +123,9 @@ Node Node::leaf(float min, float max, float h, Style s) {
     result.min_width = min; result.max_width = max; result.height = h;
     return result;
 }
-void Node::compute_layout(CtAvailable width, CtAvailable height) {
+void Node::compute_layout(CtAvailable available_width, CtAvailable available_height) {
     if (!session) { session = std::make_unique<Session>(); session->root = session->add(*this); }
-    session->compute(width, height);
+    session->compute(available_width, available_height);
 }
 std::pair<float, float> layout_single_column_grid(Value column, Value container_width, CtAvailable available_width) {
     Style style;
@@ -175,9 +175,9 @@ TEST_CASE("hand_written::fit_content_calc::fit_content_calc::grid_track_fit_cont
     REQUIRE(calc_result.second == 50.0f);
     for (const auto available_width : {definite(200), max_content, min_content}) {
         INFO("available width tag: " << available_width.tag);
-        const auto calc_result = layout_single_column_grid(fit_content(calc(0, 0.5f)), automatic(), available_width);
+        const auto loop_calc_result = layout_single_column_grid(fit_content(calc(0, 0.5f)), automatic(), available_width);
         const auto pct_result = layout_single_column_grid(fit_content(percent(0.5f)), automatic(), available_width);
-        REQUIRE(calc_result == pct_result);
+        REQUIRE(loop_calc_result == pct_result);
     }
     const auto [container_width, item_width] = layout_single_column_grid(fit_content(calc(0, 0.5f)), automatic(), max_content);
     REQUIRE(container_width == 150.0f);

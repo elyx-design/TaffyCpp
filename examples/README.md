@@ -31,4 +31,4 @@ or text-shaping implementations.
 
 See [building](../docs/building.md), the [API guide](../docs/api.md) and
 [known issues](../docs/known-issues.md) for configuration, lifetime rules and
-compatibility limits. Native Windows/MSVC remains unverified.
+compatibility limits.

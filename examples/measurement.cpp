@@ -36,7 +36,7 @@ int main() {
             text, space,
             [](LayoutTree& layout_tree, NodeId node, const LayoutInput& input) {
                 auto output = compute_leaf(layout_tree, node, input);
-                output.baselines.first = 14;
+                output.baselines.first = 14.0f;
                 return output;
             })
         .value();

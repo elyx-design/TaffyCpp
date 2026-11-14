@@ -593,7 +593,7 @@ TEST_CASE("native grid whole container sparse auto placement respects locked num
         if (row_starts[i])
             child.grid_row.start = GP::line(row_starts[i]);
         if (i < 2)
-            child.grid_column.start = GP::line(i + 1);
+            child.grid_column.start = GP::line(static_cast<std::int16_t>(i + 1));
         if (i == 2 || i == 3)
             child.grid_row.end = GP::span(2);
         children[i] = tree.new_leaf(child).value();

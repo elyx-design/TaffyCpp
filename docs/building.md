@@ -73,5 +73,10 @@ by consumers of the installed library. See [notices](third-party-notices.md).
 - Do not enable fast-math or floating-point contraction: the library target
   carries strict floating-point options needed by its layout arithmetic.
 
-Native Windows/MSVC remains unverified. Generator examples are not a claim of
-platform verification. See [known issues](known-issues.md) for compatibility limits.
+Native Windows has been verified with MSVC 19.44 (Visual Studio 2022) using the
+Visual Studio generator, Debug and Release, static and shared, plus Clang 21 with
+Ninja: all 16 CTest groups, the installed-package consumer and the examples pass.
+Test executables use an 8 MiB stack on Windows because deep-tree fixtures exceed
+the 1 MiB default in unoptimized builds; applications that lay out very deep trees
+in Debug builds may need the same. See [known issues](known-issues.md) for
+compatibility limits.

@@ -350,7 +350,13 @@ enum class CellOccupancyState : std::uint8_t {
  * Mutations may expand implicit counts and invalidate previously derived indexes.
  * Queries outside recorded tracks see no occupancy. No thread synchronization.
  */
+// Test-only inspection hook, defined by tests/cpp_backend/private_occupancy_backend.cpp.
+struct CellOccupancyTestAccess;
+
 class CellOccupancy {
+    // Declared unconditionally so the class definition is identical in every TU (ODR).
+    friend struct CellOccupancyTestAccess;
+
     struct Interval {
         Line<std::int32_t> range;
         CellOccupancyState state;

@@ -96,11 +96,11 @@ void compute(TsTree& c,uint64_t h,OracleSizing space,bool measured,void* user,Ts
         catch(...) { c.poisoned=true; throw CallbackFailure{ORACLE_CALLBACK_FAILURE,"measurement callback threw"}; }
         if(status) {
             c.poisoned=true;
-            throw CallbackFailure{status==ORACLE_PANIC?ORACLE_PANIC:ORACLE_CALLBACK_FAILURE,"measurement callback returned failure"};
+            throw CallbackFailure{static_cast<std::uint32_t>(status==ORACLE_PANIC?ORACLE_PANIC:ORACLE_CALLBACK_FAILURE),"measurement callback returned failure"};
         }
         if(out.native_output) return std::move(*static_cast<taffy::LayoutOutput*>(out.native_output));
         try { return output(out.value); }
-        catch(const Failure& e) { c.poisoned=true; throw; }
+        catch(const Failure&) { c.poisoned=true; throw; }
     }));
 }
 }

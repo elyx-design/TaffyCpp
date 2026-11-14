@@ -51,8 +51,10 @@ all 6,604 XML fixtures. XML geometry is mandatory; optional grid metadata and
 scroll sizes follow upstream's conditional comparisons when both sides provide
 values. A missing optional result is not fabricated by the runner.
 
-**Native Windows/MSVC has not been verified.** MinGW/Wine or another compiler's
-results are not equivalent to native MSVC verification. No stable binary ABI,
+Native Windows was verified locally with MSVC 19.44 and Clang 21 (see
+[building](building.md)); it is not yet covered by CI, and MinGW is unverified.
+Layout recursion is proportional to tree depth, so deep trees in unoptimized builds
+can exhaust Windows' 1 MiB default thread stack. No stable binary ABI,
 universal platform support, published release or blanket legal clearance is
 claimed. Fixture import history retains qualifications described in
 [third-party notices](third-party-notices.md).
