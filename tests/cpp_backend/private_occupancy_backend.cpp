@@ -23,12 +23,14 @@
 // track lists without redefining private, copying layouts, or introducing a second
 // occupancy engine. (An explicit-instantiation friend-injection trick was used
 // previously, but MSVC cannot deduce the injected friend's return type: C3779.)
-struct taffy::grid::CellOccupancyTestAccess {
+namespace taffy::grid {
+struct CellOccupancyTestAccess {
     using Track = CellOccupancy::TrackIntervals;
     static const std::vector<Track>& lists(const CellOccupancy& matrix, AbsoluteAxis axis) {
         return matrix.track_lists(axis);
     }
 };
+} // namespace taffy::grid
 #include <variant>
 
 namespace {
