@@ -78,6 +78,14 @@ foreach(header IN LISTS _taffy_public_headers)
     set(check "${PROJECT_BINARY_DIR}/public_header_checks/${name}.cpp")
     file(GENERATE OUTPUT "${check}" CONTENT "#include <taffy/${name}>\nstatic_assert(true);\n")
     list(APPEND _taffy_header_checks "${check}")
+    # Applications often include <windows.h> first, without NOMINMAX. Its TRUE, FALSE,
+    # min and max macros must neither break Taffy's headers nor be undefined by them.
+    if(WIN32)
+        set(check "${PROJECT_BINARY_DIR}/public_header_checks/windows_h_${name}.cpp")
+        file(GENERATE OUTPUT "${check}" CONTENT "#include <windows.h>\n#include <taffy/${name}>\n\
+static_assert(TRUE == 1 && FALSE == 0 && max(1, 2) == 2 && min(1, 2) == 1);\n")
+        list(APPEND _taffy_header_checks "${check}")
+    endif()
 endforeach()
 add_library(taffy_public_header_checks OBJECT ${_taffy_header_checks})
 target_link_libraries(taffy_public_header_checks PRIVATE taffy::taffy)

@@ -45,15 +45,15 @@ struct TrackSizingFunction {
     constexpr TrackSizingFunction() = default;
 
     constexpr TrackSizingFunction(MinTrackSizingFunction minimum, MaxTrackSizingFunction maximum)
-        : min(minimum), max(maximum) {}
+        : min{minimum}, max{maximum} {}
 
-    constexpr TrackSizingFunction(LengthPercentage value) : min(value), max(value) {}
+    constexpr TrackSizingFunction(LengthPercentage value) : min{value}, max{value} {}
 
-    constexpr TrackSizingFunction(LengthPercentageAuto value) : min(value), max(value) {}
+    constexpr TrackSizingFunction(LengthPercentageAuto value) : min{value}, max{value} {}
 
-    constexpr TrackSizingFunction(Dimension value) : min(value), max(value) {}
+    constexpr TrackSizingFunction(Dimension value) : min{value}, max{value} {}
 
-    constexpr TrackSizingFunction(MaxTrackSizingFunction value) : min(value), max(value) {}
+    constexpr TrackSizingFunction(MaxTrackSizingFunction value) : min{value}, max{value} {}
 
     /// minmax(auto, auto).
     static constexpr TrackSizingFunction auto_() {

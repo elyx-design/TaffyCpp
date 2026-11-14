@@ -98,7 +98,7 @@ template <std::integral I, std::floating_point F>
         return I{0};
     const F upper = std::ldexp(F{1}, std::numeric_limits<I>::digits);
     if (value >= upper)
-        return std::numeric_limits<I>::max();
+        return (std::numeric_limits<I>::max)(); // Parenthesized against <windows.h> max().
     if constexpr (std::is_signed_v<I>) {
         if (value <= -upper)
             return std::numeric_limits<I>::lowest();

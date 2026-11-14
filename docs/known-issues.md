@@ -54,7 +54,10 @@ values. A missing optional result is not fabricated by the runner.
 Native Windows was verified locally with MSVC 19.44 and Clang 21 (see
 [building](building.md)); it is not yet covered by CI, and MinGW is unverified.
 Layout recursion is proportional to tree depth, so deep trees in unoptimized builds
-can exhaust Windows' 1 MiB default thread stack. No stable binary ABI,
+can exhaust Windows' 1 MiB default thread stack. Taffy's headers may be included
+after `<windows.h>` (with or without `NOMINMAX`) and leave its macros intact, but
+code that sees the `TRUE`/`FALSE` macros cannot itself spell `Line<T>::TRUE` or
+`Line<T>::FALSE`; compare with `Line<T>{true, true}` instead. No stable binary ABI,
 universal platform support, published release or blanket legal clearance is
 claimed. Fixture import history retains qualifications described in
 [third-party notices](third-party-notices.md).
