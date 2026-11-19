@@ -189,7 +189,9 @@ until a successful layout after mutation.
 
 For grid, `detailed_layout_info(node)` is a variant: test with
 `std::get_if<DetailedGridInfo>` before accessing track positions, implicit/explicit
-counts, names, areas, and item placement. Non-grid info can be `std::monostate`.
+counts, names, areas, and item placement. For flex, `std::get_if<DetailedFlexInfo>`
+gives each flex line's in-flow items and physical cross extent after full layout. Other nodes can hold
+`std::monostate`.
 `Layout` itself does not expose baselines: those travel in `LayoutOutput` between
 algorithms and callbacks.
 
@@ -416,7 +418,7 @@ references must stay valid until mutation; algorithms may retain borrowed views
 during callbacks. A full block adapter should forward the synchronous borrowed
 `BlockContext*` in `compute_block_child_layout` when sharing float/block context;
 the default implementation falls back to ordinary child layout. Implement grid
-metadata hooks if callers need detailed grid info (defaults discard it), and real
+metadata hooks if callers need detailed grid or flex info (defaults discard it), and real
 hoisted-child storage for multi-node out-of-flow layout/rounding.
 
 [custom_tree.cpp](../examples/custom_tree.cpp) is intentionally a minimal one-node

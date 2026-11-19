@@ -149,6 +149,7 @@ public:
     void set_final_layout(NodeId n, const Layout& l) override { node(n).final_layout = l; }
     const DetailedLayoutInfo& detailed_layout_info(NodeId n) const override { return node(n).detail; }
     void set_detailed_grid_info(NodeId n, DetailedGridInfo info) override { node(n).detail = std::move(info); }
+    void set_detailed_flex_info(NodeId n, DetailedFlexInfo info) override { node(n).detail = std::move(info); }
     void clear_hoisted_children(NodeId n) override { ++counts.hoist_clear; node(n).hoisted.clear(); }
     void add_hoisted_children(NodeId n, std::span<const NodeId> children) override {
         ++counts.hoist_add;

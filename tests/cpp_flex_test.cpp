@@ -878,3 +878,120 @@ TEST_CASE("Native flex RTL scroll gutter mirrors physical placement but not scro
         CHECK(tree.unrounded_layout(root).scrollable_overflow_rect == Rect<float>{0, 120, 0, 20});
     }
 }
+
+namespace {
+std::vector<std::vector<NodeId>> flex_lines(const Tree& tree, NodeId node) {
+    const auto* info = std::get_if<DetailedFlexInfo>(&tree.detailed_layout_info(node));
+    REQUIRE(info != nullptr);
+    std::vector<std::vector<NodeId>> lines;
+    for (const auto& line : info->lines)
+        lines.push_back(line.items);
+    return lines;
+}
+} // namespace
+
+TEST_CASE("Native flex layout records its lines as detailed info", "[flex][integration][detailed]") {
+    Tree tree;
+    SECTION("wrapped lines in source order, without out-of-flow children") {
+        const auto a = tree.new_leaf(flex_box(40, 10)).value();
+        const auto b = tree.new_leaf(flex_box(40, 10)).value();
+        auto absolute = flex_box(10, 10);
+        absolute.position = Position::Absolute;
+        const auto c = tree.new_leaf(absolute).value();
+        const auto d = tree.new_leaf(flex_box(40, 10)).value();
+        auto style = flex_box(100, 40);
+        style.flex_wrap = FlexWrap::Wrap;
+        style.gap.width = LengthPercentage::length(10);
+        const auto root = flex_parent(tree, style, {a, b, c, d});
+        run_flex(tree, root);
+        CHECK(flex_lines(tree, root) == std::vector<std::vector<NodeId>>{{a, b}, {d}});
+    }
+    SECTION("a negative gap overlaps items without breaking lines") {
+        const auto a = tree.new_leaf(flex_box(40, 10)).value();
+        const auto b = tree.new_leaf(flex_box(40, 10)).value();
+        const auto c = tree.new_leaf(flex_box(40, 10)).value();
+        auto style = flex_box(110, 40);
+        style.flex_wrap = FlexWrap::Wrap;
+        style.gap.width = LengthPercentage::length(-10);
+        const auto root = flex_parent(tree, style, {a, b, c});
+        run_flex(tree, root);
+        check_box(tree, b, 30, 0, 40, 10);
+        CHECK(flex_lines(tree, root) == std::vector<std::vector<NodeId>>{{a, b, c}});
+    }
+    SECTION("reversed directions keep line and item order") {
+        const auto a = tree.new_leaf(flex_box(60, 10)).value();
+        const auto b = tree.new_leaf(flex_box(60, 10)).value();
+        auto style = flex_box(100, 40);
+        style.flex_direction = FlexDirection::RowReverse;
+        style.flex_wrap = FlexWrap::WrapReverse;
+        const auto root = flex_parent(tree, style, {a, b});
+        run_flex(tree, root);
+        CHECK(flex_lines(tree, root) == std::vector<std::vector<NodeId>>{{a}, {b}});
+    }
+}
+
+TEST_CASE("Native flex line info reports physical cross extents", "[flex][integration][detailed]") {
+    using Extents = std::vector<std::pair<float, float>>;
+    const auto extents = [](const Tree& tree, NodeId node) {
+        const auto* info = std::get_if<DetailedFlexInfo>(&tree.detailed_layout_info(node));
+        REQUIRE(info != nullptr);
+        Extents result;
+        for (const auto& line : info->lines)
+            result.emplace_back(line.cross_start, line.cross_size);
+        return result;
+    };
+    Tree tree;
+    // Two 60-wide items in a 100-wide content box wrap into one line each. Normal
+    // align-content stretches both lines over the 90-tall content box.
+    auto style = flex_box(110, 100);
+    style.flex_wrap = FlexWrap::Wrap;
+    style.align_items = AlignItems::start();
+    style.padding = Rect<LengthPercentage>::splat(LengthPercentage::length(5));
+    SECTION("stretched lines in order") {
+        const auto a = tree.new_leaf(flex_box(60, 10)).value();
+        const auto b = tree.new_leaf(flex_box(60, 10)).value();
+        const auto root = flex_parent(tree, style, {a, b});
+        run_flex(tree, root);
+        CHECK(extents(tree, root) == Extents{{5, 45}, {50, 45}});
+        check_box(tree, b, 5, 50, 60, 10);
+    }
+    SECTION("wrap-reverse places the first line at the cross end") {
+        style.flex_wrap = FlexWrap::WrapReverse;
+        const auto a = tree.new_leaf(flex_box(60, 10)).value();
+        const auto b = tree.new_leaf(flex_box(60, 10)).value();
+        const auto root = flex_parent(tree, style, {a, b});
+        run_flex(tree, root);
+        CHECK(extents(tree, root) == Extents{{50, 45}, {5, 45}});
+    }
+    SECTION("right-to-left columns place the first line at the physical right") {
+        style.size = Size<Dimension>::from_lengths(100, 30);
+        style.flex_direction = FlexDirection::Column;
+        style.direction = Direction::Rtl;
+        const auto a = tree.new_leaf(flex_box(10, 15)).value();
+        const auto b = tree.new_leaf(flex_box(10, 15)).value();
+        const auto root = flex_parent(tree, style, {a, b});
+        run_flex(tree, root);
+        CHECK(extents(tree, root) == Extents{{50, 45}, {5, 45}});
+    }
+}
+
+TEST_CASE("Native flex containers without in-flow items record no lines", "[flex][integration][detailed]") {
+    Tree tree;
+    SECTION("children all out of flow") {
+        auto absolute = flex_box(10, 10);
+        absolute.position = Position::Absolute;
+        const auto child = tree.new_leaf(absolute).value();
+        const auto root = flex_parent(tree, flex_box(100, 40), {child});
+        run_flex(tree, root);
+        CHECK(flex_lines(tree, root).empty());
+    }
+    SECTION("no children, laid out directly by the flex algorithm") {
+        const auto root = tree.new_leaf(flex_box(100, 40)).value();
+        LayoutInput sizing;
+        sizing.run_mode = RunMode::ComputeSize;
+        compute_flex(tree, root, sizing);
+        CHECK(std::holds_alternative<std::monostate>(tree.detailed_layout_info(root)));
+        compute_flex(tree, root, LayoutInput{});
+        CHECK(flex_lines(tree, root).empty());
+    }
+}

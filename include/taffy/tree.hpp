@@ -181,6 +181,8 @@ public:
     const DetailedLayoutInfo& detailed_layout_info(NodeId node) const override;
     /// Advanced: replace the node's detailed grid metadata.
     void set_detailed_grid_info(NodeId node, DetailedGridInfo info) override;
+    /// Advanced: replace the node's detailed flex metadata.
+    void set_detailed_flex_info(NodeId node, DetailedFlexInfo info) override;
     /// Advanced: reset hoisted descendant IDs without deleting nodes.
     void clear_hoisted_children(NodeId node) override;
     /// Advanced: copy/append hoisted IDs; does not change ordinary parent-child links.

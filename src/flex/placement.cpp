@@ -116,8 +116,11 @@ void calculate_layout_line(LayoutTree& tree, FlexLine& line, float& total_cross,
                            ? c.container_size.width - c.content_box_inset.main_end(c.dir)
                            : c.content_box_inset.main_start(c.dir);
     const bool rtl_column = c.layout_direction == Direction::Rtl && is_column(c.dir);
-    if (rtl_column)
+    if (rtl_column) {
         total_cross -= line.offset_cross + line.cross_size;
+        line.position_cross = total_cross;
+    } else
+        line.position_cross = total_cross + line.offset_cross;
     for (std::size_t i = 0; i < line.items.size(); ++i) {
         auto& item = line.items[is_reverse(c.dir) ? line.items.size() - 1 - i : i];
         calculate_flex_item(tree, item, total_main, total_cross, line.offset_cross, overflow, c);

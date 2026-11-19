@@ -81,6 +81,8 @@ public:
     virtual const DetailedLayoutInfo& detailed_layout_info(NodeId node) const;
     /// Store grid metadata; the default discards it.
     virtual void set_detailed_grid_info(NodeId node, DetailedGridInfo info);
+    /// Store flex line metadata; the default discards it.
+    virtual void set_detailed_flex_info(NodeId node, DetailedFlexInfo info);
     /// Reset the node's list of hoisted out-of-flow descendants.
     virtual void clear_hoisted_children(NodeId node) = 0;
     /// Append IDs; the adapter must copy, not retain, this borrowed span.
