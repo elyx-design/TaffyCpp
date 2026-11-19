@@ -52,6 +52,8 @@ struct FlexItem {
 struct FlexLine {
     std::span<FlexItem> items{};
     float cross_size = 0, offset_cross = 0;
+    /// Physical cross-axis start in the container's border-box frame, set by final_layout_pass.
+    float position_cross = 0;
 };
 
 struct AlgoConstants {

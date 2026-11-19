@@ -87,6 +87,8 @@ const DetailedLayoutInfo& LayoutTree::detailed_layout_info(NodeId) const {
 
 void LayoutTree::set_detailed_grid_info(NodeId, DetailedGridInfo) {}
 
+void LayoutTree::set_detailed_flex_info(NodeId, DetailedFlexInfo) {}
+
 bool LayoutTree::is_out_of_flow(NodeId node) const {
     const auto& s = style(node);
     return s.display != Display::None && taffy::is_out_of_flow(s.position);

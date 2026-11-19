@@ -343,6 +343,10 @@ void Tree::set_detailed_grid_info(NodeId node, DetailedGridInfo info) {
     impl_->get(node).detailed = std::move(info);
 }
 
+void Tree::set_detailed_flex_info(NodeId node, DetailedFlexInfo info) {
+    impl_->get(node).detailed = std::move(info);
+}
+
 void Tree::clear_hoisted_children(NodeId node) {
     impl_->get(node).hoisted.clear();
 }

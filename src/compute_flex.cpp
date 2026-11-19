@@ -5,7 +5,8 @@ namespace taffy {
 namespace {
 using namespace flex_detail;
 
-LayoutOutput empty_container(LayoutTree& tree, const LayoutInput& input, AlgoConstants c) {
+LayoutOutput empty_container(LayoutTree& tree, NodeId node, const LayoutInput& input,
+                             AlgoConstants c) {
     const auto dir = c.dir;
     const auto available =
         determine_available_space(input.known_dimensions, input.available_space, c);
@@ -19,9 +20,29 @@ LayoutOutput empty_container(LayoutTree& tree, const LayoutInput& input, AlgoCon
         return LayoutOutput::from_outer_size(
             Size<float>{}.with_main(dir, c.container_size.main(dir)));
     determine_container_cross_size(lines, input.known_dimensions, c);
+    // Full layout records no lines, as it does for a container whose children are all out of flow.
+    if (input.run_mode != RunMode::ComputeSize)
+        tree.set_detailed_flex_info(node, DetailedFlexInfo{});
     auto output = LayoutOutput::from_outer_size(c.container_size);
     output.oof_positioning_area = OofPositioningArea{};
     return output;
+}
+
+DetailedFlexInfo make_detailed_flex_info(const std::vector<FlexLine>& lines) {
+    DetailedFlexInfo info;
+    info.lines.reserve(lines.size());
+    for (const auto& line : lines) {
+        // Line collection yields one empty line when every child is out of flow.
+        if (line.items.empty())
+            continue;
+        auto& record = info.lines.emplace_back();
+        record.cross_start = line.position_cross;
+        record.cross_size = line.cross_size;
+        record.items.reserve(line.items.size());
+        for (const auto& item : line.items)
+            record.items.push_back(item.node);
+    }
+    return info;
 }
 
 LayoutOutput preliminary(LayoutTree& tree, NodeId node, const LayoutInput& input) {
@@ -29,7 +50,7 @@ LayoutOutput preliminary(LayoutTree& tree, NodeId node, const LayoutInput& input
                                input.known_dimensions_are_definite, input.parent_size,
                                input.available_space);
     if (tree.child_count(node) == 0)
-        return empty_container(tree, input, c);
+        return empty_container(tree, node, input, c);
     auto items = generate_anonymous_flex_items(tree, node, c);
     const auto available =
         determine_available_space(input.known_dimensions, input.available_space, c);
@@ -81,6 +102,7 @@ LayoutOutput preliminary(LayoutTree& tree, NodeId node, const LayoutInput& input
         return LayoutOutput::from_outer_size(c.container_size);
     align_flex_lines_per_align_content(lines, c, total_cross);
     const auto overflow = final_layout_pass(tree, lines, c);
+    tree.set_detailed_flex_info(node, make_detailed_flex_info(lines));
     OofCandidates candidates;
     collect_oof_candidates(tree, node, c, lines, candidates);
     const auto absolute_inset =

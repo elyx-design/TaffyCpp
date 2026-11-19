@@ -415,8 +415,36 @@ struct DetailedGridInfo {
     }
 };
 
+/// The in-flow items of one flex line.
+struct DetailedFlexLineInfo {
+    /// Item nodes in source order. Reversed directions place them from the main end,
+    /// but this order does not flip.
+    std::vector<NodeId> items{};
+    /// Physical start of the line on the cross axis (y for rows, x for columns), in the
+    /// container's border-box frame like child locations. Includes align-content offsets.
+    float cross_start = 0;
+    /// The line's cross size, which can exceed its items' extent (align-content stretch,
+    /// definite cross sizes). The line covers [cross_start, cross_start + cross_size].
+    float cross_size = 0;
+    /// Compare items and cross extents.
+    bool operator==(const DetailedFlexLineInfo&) const = default;
+};
+
+/** @brief Owning flex metadata: how in-flow items were broken into lines.
+ * Recorded by full flex layout, not intrinsic sizing. Lines are in line order:
+ * wrap-reverse places them from the cross end, but this order does not flip. A
+ * single-line container has one line; a container without in-flow items has none.
+ * Tree layout dispatches childless nodes to leaf layout, so like grid metadata, a
+ * childless flex node laid out through a Tree records nothing.
+ */
+struct DetailedFlexInfo {
+    std::vector<DetailedFlexLineInfo> lines{}; ///< Lines in line order.
+    /// Compare all lines.
+    bool operator==(const DetailedFlexInfo&) const = default;
+};
+
 /// Optional algorithm-specific owned metadata; monostate means no detailed metadata.
-using DetailedLayoutInfo = std::variant<std::monostate, DetailedGridInfo>;
+using DetailedLayoutInfo = std::variant<std::monostate, DetailedGridInfo, DetailedFlexInfo>;
 
 } // namespace taffy
 
