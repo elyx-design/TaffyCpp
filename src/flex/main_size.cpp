@@ -253,7 +253,13 @@ void determine_container_main_size(LayoutTree& tree, Size<AvailableSpace> availa
                 const float max_content_size = widest_line_length + main_content_box_inset;
                 return f32_max(size, f32_min(max_content_size, main_available_space.value()));
             }
-            return lines.size() > 1 ? f32_max(size, main_available_space.value()) : size;
+            // `size` is the outer size; the available space excludes the
+            // container's padding and border, so add them back before comparing.
+            // Upstream Taffy 0.15.1 compares the two directly, which drops the
+            // insets of a wrapping container offered a definite size.
+            return lines.size() > 1
+                       ? f32_max(size, main_available_space.value() + main_content_box_inset)
+                       : size;
         }
 
         float main_size = 0.0f;

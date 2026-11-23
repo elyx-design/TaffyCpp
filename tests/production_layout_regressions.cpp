@@ -5,6 +5,8 @@
 #include "../src/block.hpp"
 #include "../src/flex/internal.hpp"
 
+#include <algorithm>
+#include <cmath>
 #include <memory>
 #include <vector>
 
@@ -377,6 +379,86 @@ TEST_CASE("Production capped flex roots still hug content below the limit",
         near(tree.layout(root).size.main(dir), 60);
         near(tree.layout(root).size.cross(dir), 40);
     }
+}
+
+// A paragraph 855px wide on one line, never narrower than its longest word
+// (107px), and 19px per line.
+static Size<float> measure_paragraph(const LayoutInput& input, NodeId, NodeContext*, const Style&) {
+    const auto available = input.available_space.width;
+    const float width = input.known_dimensions.width.value_or(
+        available.is_definite()      ? std::clamp(available.value(), 107.0f, 855.0f)
+        : available.is_min_content() ? 107.0f
+                                     : 855.0f);
+    const float lines = std::max(1.0f, std::ceil(855.0f / width));
+    return {width, input.known_dimensions.height.value_or(19 * lines)};
+}
+
+// Browsers size an auto-width box with a max width first, then lay out its
+// contents at that width: Chrome gives each of these a 360 x 73 root with the
+// paragraph wrapped at 344 (three lines).
+TEST_CASE("Production capped roots lay out their children within the cap", "[production][root]") {
+    for (int kind : {0, 1, 2}) {
+        CAPTURE(kind);
+        Tree tree;
+        tree.set_intrinsic_measure(measure_paragraph);
+        const auto text = tree.new_leaf(Style{}).value();
+        Style style;
+        style.display = kind == 2 ? Display::Grid : Display::Flex;
+        style.flex_direction = FlexDirection::Column;
+        style.align_items = kind == 1 ? AlignItems::start() : AlignItems::stretch();
+        style.padding = Rect<LengthPercentage>::from_length(8, 8, 8, 8);
+        style.max_size.width = LengthPercentageAuto::length(360);
+        const auto root = tree.new_with_children(style, std::vector{text}).value();
+        REQUIRE(tree.compute_layout(root, Size<AvailableSpace>::max_content()).has_value());
+        near(tree.layout(root).size.width, 360);
+        near(tree.layout(root).size.height, 73);
+        near(tree.layout(text).size.width, 344);
+        near(tree.layout(text).size.height, 57);
+    }
+}
+
+TEST_CASE("Production roots below their max size still lay out at their contents' size",
+          "[production][root]") {
+    Tree tree;
+    tree.set_intrinsic_measure(measure_paragraph);
+    const auto text = tree.new_leaf(Style{}).value();
+    Style style;
+    style.display = Display::Flex;
+    style.flex_direction = FlexDirection::Column;
+    style.padding = Rect<LengthPercentage>::from_length(8, 8, 8, 8);
+    style.max_size.width = LengthPercentageAuto::length(2000);
+    const auto root = tree.new_with_children(style, std::vector{text}).value();
+    REQUIRE(tree.compute_layout(root, Size<AvailableSpace>::max_content()).has_value());
+    near(tree.layout(root).size.width, 871);
+    near(tree.layout(root).size.height, 35);
+    near(tree.layout(text).size.width, 855);
+}
+
+// Chrome: a 360px root, two boxes on the first line and one on the second,
+// all inside the 8px padding.
+TEST_CASE("Production capped wrapping roots keep their padding",
+          "[production][flex][wrap-insets]") {
+    Tree tree;
+    auto child_style = box(150, 20);
+    child_style.flex_shrink = 0;
+    const auto first = tree.new_leaf(child_style).value();
+    const auto second = tree.new_leaf(child_style).value();
+    const auto third = tree.new_leaf(child_style).value();
+    Style style;
+    style.display = Display::Flex;
+    style.flex_wrap = FlexWrap::Wrap;
+    style.align_items = AlignItems::start();
+    style.align_content = AlignContent::start();
+    style.padding = Rect<LengthPercentage>::from_length(8, 8, 8, 8);
+    style.max_size.width = LengthPercentageAuto::length(360);
+    const auto root = tree.new_with_children(style, std::vector{first, second, third}).value();
+    REQUIRE(tree.compute_layout(root, Size<AvailableSpace>::max_content()).has_value());
+    near(tree.layout(root).size.width, 360);
+    near(tree.layout(root).size.height, 56);
+    near(tree.layout(first).location.x, 8);
+    near(tree.layout(second).location.x, 158);
+    near(tree.layout(third).location.x, 8);
+    near(tree.layout(third).location.y, 28);
 }
 
 TEST_CASE("Production early intrinsic flex sizing still finalizes percentage gaps",

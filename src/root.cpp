@@ -33,6 +33,31 @@ OptionalSize block_root_dimensions(const Style& style, OptionalSize parent,
         .maybe_max(padding_border);
 }
 
+// The space a root lays out in: what it is offered, but at most its own max
+// size and at least its own min size, as a flex parent offers a child
+// (determine_flex_base_size). Without this, a root with an auto size and a max
+// size lays its children out against max-content and only clamps itself
+// afterwards, so text in a capped column is measured as one line. Not in
+// upstream Taffy 0.15.1.
+Size<AvailableSpace> root_layout_space(const Style& style, OptionalSize parent,
+                                       Size<AvailableSpace> space, const CalcResolver& calc) {
+    const auto padding = style.padding.resolve_or_zero(parent.width, calc);
+    const auto border = style.border.resolve_or_zero(parent.width, calc);
+    const auto adjustment =
+        style.box_sizing == BoxSizing::ContentBox ? (padding + border).sum_axes() : Size<float>{};
+    const auto minimum = style.min_size.maybe_resolve(parent, calc).maybe_add(adjustment);
+    const auto maximum = style.max_size.maybe_resolve(parent, calc).maybe_add(adjustment);
+    const auto limit = [](AvailableSpace axis, std::optional<float> min, std::optional<float> max) {
+        if (axis.is_definite())
+            return AvailableSpace::definite(maybe_clamp(axis.value(), min, max));
+        if (axis.is_min_content())
+            return min ? AvailableSpace::definite(*min) : axis;
+        return max ? AvailableSpace::definite(*max) : axis;
+    };
+    return {limit(space.width, minimum.width, maximum.width),
+            limit(space.height, minimum.height, maximum.height)};
+}
+
 Point<float> in_flow_root_location(const Style& style, OptionalSize parent, Size<float> size,
                                    Rect<float> margin, const CalcResolver& calc) {
     const bool rtl = is_rtl(style.direction);
@@ -59,7 +84,7 @@ std::pair<Layout, OofCandidates> in_flow_root(LayoutTree& tree, NodeId root,
     const auto margin = style.margin.resolve_or_zero(parent.width, calc);
     const auto space = available.maybe_sub(margin.sum_axes()).maybe_max(Size<float>{});
     LayoutInput input;
-    input.available_space = space;
+    input.available_space = root_layout_space(style, parent, space, calc);
     input.parent_size = parent;
     if (style.is_block() || style.display == Display::FlowRoot)
         input.known_dimensions = block_root_dimensions(style, parent, space, calc);
