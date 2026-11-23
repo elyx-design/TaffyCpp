@@ -5,6 +5,7 @@
 #include <taffy/numeric.hpp>
 
 #include <cmath>
+#include <limits>
 
 namespace taffy {
 namespace {
@@ -66,10 +67,12 @@ std::optional<float> capped_root_width(LayoutTree& tree, NodeId root, const Styl
     measure.run_mode = RunMode::ComputeSize;
     measure.axis = RequestedAxis::Horizontal;
     const float width = tree.compute_child_layout(root, measure).size.width;
-    // The layout algorithms add padding and border in a different order, so a
-    // binding cap can come back a few rounding steps below `maximum`. Treating a
-    // root just under its cap as capped is harmless: it lays out at its own width.
-    const float tolerance = f32_max(0.01f, *maximum * 1e-6f);
+    // A binding cap comes back as the algorithm's own maximum. Flex and grid add
+    // a content-box root's padding and border in a different order from the sum
+    // above, so allow a few rounding steps in case the two ever differ (no case
+    // has been found). A wider allowance would treat a root just under its cap
+    // as capped, and its known width would change how percentage children resolve.
+    const float tolerance = f32_max(*maximum, 1.0f) * 4 * std::numeric_limits<float>::epsilon();
     if (width < *maximum - tolerance)
         return std::nullopt;
     return width;

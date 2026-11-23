@@ -529,6 +529,33 @@ TEST_CASE("Production roots with a NaN max width lay out as without one", "[prod
         near(with_nan[i], without[i]);
 }
 
+// A root just under its cap is not capped: with content 99.995 wide and a max
+// width of 100, it lays out as without the max width, so a percentage child
+// still resolves against an indefinite width.
+TEST_CASE("Production roots just below their max width lay out as without one",
+          "[production][root]") {
+    const auto lay_out = [](bool capped) {
+        Tree tree;
+        const auto wide = tree.new_leaf(box(99.995f, 20)).value();
+        auto half_style = box(0, 20);
+        half_style.size.width = Dimension::percent(0.5f);
+        const auto half = tree.new_leaf(half_style).value();
+        Style style;
+        style.display = Display::Flex;
+        style.flex_direction = FlexDirection::Column;
+        style.align_items = AlignItems::start();
+        if (capped)
+            style.max_size.width = LengthPercentageAuto::length(100);
+        const auto root = tree.new_with_children(style, std::vector{wide, half}).value();
+        REQUIRE(tree.compute_layout(root, Size<AvailableSpace>::max_content()).has_value());
+        return std::array{tree.layout(root).size.width, tree.layout(half).size.width};
+    };
+    const auto capped = lay_out(true);
+    const auto uncapped = lay_out(false);
+    near(capped[0], uncapped[0]);
+    near(capped[1], uncapped[1]);
+}
+
 // A min size is a floor on the root's own size, not space to lay out in: at
 // min-content the paragraph still wraps at its longest word (Chrome: 123 x 168).
 TEST_CASE("Production min sizes do not widen a min-content root's layout", "[production][root]") {

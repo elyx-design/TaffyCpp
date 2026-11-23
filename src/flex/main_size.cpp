@@ -229,7 +229,9 @@ void determine_container_main_size(LayoutTree& tree, Size<AvailableSpace> availa
             // `size` is the outer size; the available space excludes the
             // container's padding and border, so add them back before comparing.
             // Upstream Taffy 0.15.1 compares the two directly, which drops the
-            // insets of a wrapping container offered a definite size.
+            // insets of a wrapping container offered a definite size. The inner
+            // space is floored at zero, so when less than the insets is offered
+            // this is the insets alone, which `size` never falls below.
             const float outer_available = main_available_space.value() + main_content_box_inset;
             if (constants.is_balance) {
                 std::size_t item_count = 0;
