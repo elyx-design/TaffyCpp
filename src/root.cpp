@@ -4,6 +4,9 @@
 #include <taffy/compute.hpp>
 #include <taffy/numeric.hpp>
 
+#include <cmath>
+#include <limits>
+
 namespace taffy {
 namespace {
 using OptionalSize = Size<std::optional<float>>;
@@ -31,6 +34,48 @@ OptionalSize block_root_dimensions(const Style& style, OptionalSize parent,
     return fixed.or_(preferred)
         .or_(OptionalSize{space.width.into_option(), std::nullopt})
         .maybe_max(padding_border);
+}
+
+// The width a root's max width caps it to, when the cap binds. A parent sizes a
+// child by measuring it, clamping the result by the child's min/max size and
+// then laying the child out at that size (determine_hypothetical_cross_size and
+// final_layout_pass). A root has no parent, so its children were laid out
+// against the uncapped space and only the root itself was clamped afterwards:
+// text in a capped column was measured as one line. Not in upstream Taffy 0.15.1.
+//
+// Deliberately narrow: only an auto width capped by its own max width. Min
+// sizes, heights, aspect ratios (neither a width cap implied by a max height nor
+// a height derived from the capped width) and block roots, which take their own
+// path in block_root_dimensions and still ignore a max width in a definite
+// viewport, are left as before. Every root with a max width pays for the extra
+// measure: below the cap the layout that follows reuses its cached child
+// measurements; at the cap the children are measured again at the capped width.
+std::optional<float> capped_root_width(LayoutTree& tree, NodeId root, const Style& style,
+                                       OptionalSize parent, const LayoutInput& input,
+                                       const CalcResolver& calc) {
+    if (style.size.maybe_resolve(parent, calc).width)
+        return std::nullopt;
+    auto maximum = style.max_size.maybe_resolve(parent, calc).width;
+    if (!maximum || !std::isfinite(*maximum))
+        return std::nullopt;
+    if (style.box_sizing == BoxSizing::ContentBox) {
+        const auto padding = style.padding.resolve_or_zero(parent.width, calc);
+        const auto border = style.border.resolve_or_zero(parent.width, calc);
+        *maximum += padding.horizontal_axis_sum() + border.horizontal_axis_sum();
+    }
+    LayoutInput measure = input;
+    measure.run_mode = RunMode::ComputeSize;
+    measure.axis = RequestedAxis::Horizontal;
+    const float width = tree.compute_child_layout(root, measure).size.width;
+    // A binding cap comes back as the algorithm's own maximum. Flex and grid add
+    // a content-box root's padding and border in a different order from the sum
+    // above, so allow a few rounding steps in case the two ever differ (no case
+    // has been found). A wider allowance would treat a root just under its cap
+    // as capped, and its known width would change how percentage children resolve.
+    const float tolerance = f32_max(*maximum, 1.0f) * 4 * std::numeric_limits<float>::epsilon();
+    if (width < *maximum - tolerance)
+        return std::nullopt;
+    return width;
 }
 
 Point<float> in_flow_root_location(const Style& style, OptionalSize parent, Size<float> size,
@@ -63,6 +108,8 @@ std::pair<Layout, OofCandidates> in_flow_root(LayoutTree& tree, NodeId root,
     input.parent_size = parent;
     if (style.is_block() || style.display == Display::FlowRoot)
         input.known_dimensions = block_root_dimensions(style, parent, space, calc);
+    else if (const auto width = capped_root_width(tree, root, style, parent, input, calc))
+        input.known_dimensions.width = width;
     cached = tree.cache_contains(root, input);
     auto output = tree.compute_child_layout(root, input);
     Layout layout;

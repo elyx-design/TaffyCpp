@@ -73,3 +73,26 @@ Implementation: `src/flex/lines.cpp` and `src/compute_flex.cpp`. Regression test
 are in `tests/production_layout_regressions.cpp`, tagged `[wrap-insets]` and
 `[intrinsic-finalization]`. These targeted tests do not establish general flexbox
 or CSS conformance.
+
+### Post-port fix: capped roots lay out within their max width
+
+A root with an auto width and a max width that binds is now laid out at the
+capped width, as a parent lays out a capped child: measured, clamped, then laid
+out with that width known. Upstream Taffy 0.15.1 lays the root's children out
+against the uncapped space and clamps only the root, so text in a capped column
+root was measured as one line. Min sizes, heights, aspect ratios and block roots
+are deliberately unchanged.
+
+Implementation: `capped_root_width` in `src/root.cpp`. Regression tests are in
+`tests/production_layout_regressions.cpp`, tagged `[root]`.
+
+### Post-port fix: wrapping containers keep their insets in definite space
+
+A wrapping flex container offered a definite main size compared its outer size
+with the available space inside its padding and border, so it lost them. Both
+the wrap and the balanced branch now add the insets back before comparing.
+Upstream Taffy 0.15.1 has the same comparison.
+
+Implementation: `determine_container_main_size` in `src/flex/main_size.cpp`.
+Regression tests are in `tests/production_layout_regressions.cpp`, tagged
+`[wrap-insets]`.

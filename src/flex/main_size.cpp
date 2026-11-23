@@ -226,6 +226,13 @@ void determine_container_main_size(LayoutTree& tree, Size<AvailableSpace> availa
             const float size = longest_line_length.value_or(0.0f) + main_content_box_inset;
             if (!main_available_space.is_definite())
                 return size;
+            // `size` is the outer size; the available space excludes the
+            // container's padding and border, so add them back before comparing.
+            // Upstream Taffy 0.15.1 compares the two directly, which drops the
+            // insets of a wrapping container offered a definite size. The inner
+            // space is floored at zero, so when less than the insets is offered
+            // this is the insets alone, which `size` never falls below.
+            const float outer_available = main_available_space.value() + main_content_box_inset;
             if (constants.is_balance) {
                 std::size_t item_count = 0;
                 for (const auto& line : lines)
@@ -251,9 +258,9 @@ void determine_container_main_size(LayoutTree& tree, Size<AvailableSpace> availa
                     widest_line_length = f32_max(widest_line_length, line_length);
                 }
                 const float max_content_size = widest_line_length + main_content_box_inset;
-                return f32_max(size, f32_min(max_content_size, main_available_space.value()));
+                return f32_max(size, f32_min(max_content_size, outer_available));
             }
-            return lines.size() > 1 ? f32_max(size, main_available_space.value()) : size;
+            return lines.size() > 1 ? f32_max(size, outer_available) : size;
         }
 
         float main_size = 0.0f;

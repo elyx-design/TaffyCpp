@@ -5,6 +5,9 @@
 #include "../src/block.hpp"
 #include "../src/flex/internal.hpp"
 
+#include <algorithm>
+#include <array>
+#include <cmath>
 #include <memory>
 #include <vector>
 
@@ -377,6 +380,307 @@ TEST_CASE("Production capped flex roots still hug content below the limit",
         near(tree.layout(root).size.main(dir), 60);
         near(tree.layout(root).size.cross(dir), 40);
     }
+}
+
+// A paragraph 855px wide on one line, never narrower than its longest word
+// (107px), and 19px per line.
+static Size<float> measure_paragraph(const LayoutInput& input, NodeId, NodeContext*, const Style&) {
+    const auto available = input.available_space.width;
+    const float width = input.known_dimensions.width.value_or(
+        available.is_definite()      ? std::clamp(available.value(), 107.0f, 855.0f)
+        : available.is_min_content() ? 107.0f
+                                     : 855.0f);
+    const float lines = std::max(1.0f, std::ceil(855.0f / width));
+    return {width, input.known_dimensions.height.value_or(19 * lines)};
+}
+
+// A root with 8px padding around one measured paragraph.
+static NodeId paragraph_root(Tree& tree, Style style, NodeId& text) {
+    tree.set_intrinsic_measure(measure_paragraph);
+    text = tree.new_leaf(Style{}).value();
+    style.padding = Rect<LengthPercentage>::from_length(8, 8, 8, 8);
+    return tree.new_with_children(style, std::vector{text}).value();
+}
+
+static Style capped_column(float max_width) {
+    Style style;
+    style.display = Display::Flex;
+    style.flex_direction = FlexDirection::Column;
+    style.max_size.width = LengthPercentageAuto::length(max_width);
+    return style;
+}
+
+// Browsers size an auto-width box with a max width first, then lay out its
+// contents at that width: Chrome gives each of these a 360 x 73 root with the
+// paragraph wrapped at 344 (three lines).
+TEST_CASE("Production capped roots lay out their children within the cap", "[production][root]") {
+    for (int kind : {0, 1, 2}) {
+        CAPTURE(kind);
+        Tree tree;
+        auto style = capped_column(360);
+        if (kind == 1)
+            style.align_items = AlignItems::start();
+        if (kind == 2)
+            style.display = Display::Grid;
+        NodeId text;
+        const auto root = paragraph_root(tree, style, text);
+        REQUIRE(tree.compute_layout(root, Size<AvailableSpace>::max_content()).has_value());
+        near(tree.layout(root).size.width, 360);
+        near(tree.layout(root).size.height, 73);
+        near(tree.layout(text).size.width, 344);
+        near(tree.layout(text).size.height, 57);
+    }
+}
+
+// A percentage child resolves against the capped width, as it does when the
+// same container is nested in a hugging column, and in Chrome (172 = 50% of 344).
+TEST_CASE("Production capped roots resolve percentage children against the cap",
+          "[production][root]") {
+    Tree tree;
+    tree.set_intrinsic_measure(measure_paragraph);
+    auto half_style = box(0, 20);
+    half_style.size.width = Dimension::percent(0.5f);
+    half_style.flex_shrink = 0;
+    const auto half = tree.new_leaf(half_style).value();
+    const auto text = tree.new_leaf(Style{}).value();
+    auto style = capped_column(360);
+    style.align_items = AlignItems::start();
+    style.padding = Rect<LengthPercentage>::from_length(8, 8, 8, 8);
+    const auto root = tree.new_with_children(style, std::vector{half, text}).value();
+    REQUIRE(tree.compute_layout(root, Size<AvailableSpace>::max_content()).has_value());
+    near(tree.layout(root).size.width, 360);
+    near(tree.layout(half).size.width, 172);
+    near(tree.layout(text).size.height, 57);
+}
+
+// Chrome gives the same result when the root is offered more space than its cap.
+TEST_CASE("Production capped roots in a wider definite space lay out within the cap",
+          "[production][root]") {
+    Tree tree;
+    NodeId text;
+    const auto root = paragraph_root(tree, capped_column(360), text);
+    REQUIRE(
+        tree.compute_layout(root, {AvailableSpace::definite(1000), AvailableSpace::max_content()})
+            .has_value());
+    near(tree.layout(root).size.width, 360);
+    near(tree.layout(root).size.height, 73);
+    near(tree.layout(text).size.height, 57);
+}
+
+// A content-box max width excludes the padding: Chrome gives a 376 x 73 root.
+TEST_CASE("Production content-box capped roots lay out within the cap", "[production][root]") {
+    Tree tree;
+    auto style = capped_column(360);
+    style.box_sizing = BoxSizing::ContentBox;
+    NodeId text;
+    const auto root = paragraph_root(tree, style, text);
+    REQUIRE(tree.compute_layout(root, Size<AvailableSpace>::max_content()).has_value());
+    near(tree.layout(root).size.width, 376);
+    near(tree.layout(root).size.height, 73);
+    near(tree.layout(text).size.width, 360);
+    near(tree.layout(text).size.height, 57);
+}
+
+// A cap above the contents changes nothing, including for a 1fr grid track
+// (Chrome: 871 x 35 for both).
+TEST_CASE("Production roots below their max size still lay out at their contents' size",
+          "[production][root]") {
+    for (const bool grid : {false, true}) {
+        CAPTURE(grid);
+        Tree tree;
+        auto style = capped_column(2000);
+        if (grid) {
+            style.display = Display::Grid;
+            style.grid_template_columns = {TrackSizingFunction::fr(1)};
+        }
+        NodeId text;
+        const auto root = paragraph_root(tree, style, text);
+        REQUIRE(tree.compute_layout(root, Size<AvailableSpace>::max_content()).has_value());
+        near(tree.layout(root).size.width, 871);
+        near(tree.layout(root).size.height, 35);
+        near(tree.layout(text).size.width, 855);
+    }
+}
+
+// A max width that is not a number caps nothing: the root lays out exactly as
+// it does without one, including a percentage child.
+TEST_CASE("Production roots with a NaN max width lay out as without one", "[production][root]") {
+    const auto lay_out = [](bool nan_max) {
+        Tree tree;
+        tree.set_intrinsic_measure(measure_paragraph);
+        auto half_style = box(0, 20);
+        half_style.size.width = Dimension::percent(0.5f);
+        const auto half = tree.new_leaf(half_style).value();
+        const auto text = tree.new_leaf(Style{}).value();
+        Style style;
+        style.display = Display::Flex;
+        style.flex_direction = FlexDirection::Column;
+        style.align_items = AlignItems::start();
+        if (nan_max)
+            style.max_size.width = LengthPercentageAuto::length(std::nanf(""));
+        const auto root = tree.new_with_children(style, std::vector{half, text}).value();
+        REQUIRE(tree.compute_layout(root, Size<AvailableSpace>::max_content()).has_value());
+        return std::array{tree.layout(root).size.width, tree.layout(root).size.height,
+                          tree.layout(half).size.width, tree.layout(text).size.height};
+    };
+    const auto with_nan = lay_out(true);
+    const auto without = lay_out(false);
+    for (std::size_t i = 0; i < with_nan.size(); ++i)
+        near(with_nan[i], without[i]);
+}
+
+// A root just under its cap is not capped: with content 99.995 wide and a max
+// width of 100, it lays out as without the max width, so a percentage child
+// still resolves against an indefinite width.
+TEST_CASE("Production roots just below their max width lay out as without one",
+          "[production][root]") {
+    const auto lay_out = [](bool capped) {
+        Tree tree;
+        const auto wide = tree.new_leaf(box(99.995f, 20)).value();
+        auto half_style = box(0, 20);
+        half_style.size.width = Dimension::percent(0.5f);
+        const auto half = tree.new_leaf(half_style).value();
+        Style style;
+        style.display = Display::Flex;
+        style.flex_direction = FlexDirection::Column;
+        style.align_items = AlignItems::start();
+        if (capped)
+            style.max_size.width = LengthPercentageAuto::length(100);
+        const auto root = tree.new_with_children(style, std::vector{wide, half}).value();
+        REQUIRE(tree.compute_layout(root, Size<AvailableSpace>::max_content()).has_value());
+        return std::array{tree.layout(root).size.width, tree.layout(half).size.width};
+    };
+    const auto capped = lay_out(true);
+    const auto uncapped = lay_out(false);
+    near(capped[0], uncapped[0]);
+    near(capped[1], uncapped[1]);
+}
+
+// A min size is a floor on the root's own size, not space to lay out in: at
+// min-content the paragraph still wraps at its longest word (Chrome: 123 x 168).
+TEST_CASE("Production min sizes do not widen a min-content root's layout", "[production][root]") {
+    Tree tree;
+    Style style;
+    style.display = Display::Flex;
+    style.min_size.width = LengthPercentageAuto::length(10);
+    NodeId text;
+    const auto root = paragraph_root(tree, style, text);
+    REQUIRE(
+        tree.compute_layout(root, {AvailableSpace::min_content(), AvailableSpace::max_content()})
+            .has_value());
+    near(tree.layout(root).size.width, 123);
+    near(tree.layout(root).size.height, 168);
+    near(tree.layout(text).size.width, 107);
+}
+
+static NodeId wrapping_boxes(Tree& tree, Style style, std::vector<NodeId>& boxes) {
+    auto child_style = box(150, 20);
+    child_style.flex_shrink = 0;
+    for (int i = 0; i < 3; ++i)
+        boxes.push_back(tree.new_leaf(child_style).value());
+    style.display = Display::Flex;
+    style.align_items = AlignItems::start();
+    style.align_content = AlignContent::start();
+    style.padding = Rect<LengthPercentage>::from_length(8, 8, 8, 8);
+    return tree.new_with_children(style, boxes).value();
+}
+
+// Chrome: a 360px root, two boxes on the first line and one on the second,
+// all inside the 8px padding.
+TEST_CASE("Production capped wrapping roots keep their padding",
+          "[production][flex][wrap-insets]") {
+    Tree tree;
+    Style style;
+    style.flex_wrap = FlexWrap::Wrap;
+    style.max_size.width = LengthPercentageAuto::length(360);
+    std::vector<NodeId> boxes;
+    const auto root = wrapping_boxes(tree, style, boxes);
+    REQUIRE(tree.compute_layout(root, Size<AvailableSpace>::max_content()).has_value());
+    near(tree.layout(root).size.width, 360);
+    near(tree.layout(root).size.height, 56);
+    near(tree.layout(boxes[0]).location.x, 8);
+    near(tree.layout(boxes[1]).location.x, 158);
+    near(tree.layout(boxes[2]).location.x, 8);
+    near(tree.layout(boxes[2]).location.y, 28);
+}
+
+// Balanced lines shrink to the widest balanced line plus the padding,
+// 2 x 150 + 16, as the same row does nested in a hugging column (no browser
+// equivalent).
+TEST_CASE("Production capped balanced roots keep their padding",
+          "[production][flex][wrap-insets]") {
+    Tree tree;
+    Style style;
+    style.flex_wrap = FlexWrap::Balance;
+    style.max_size.width = LengthPercentageAuto::length(360);
+    std::vector<NodeId> boxes;
+    const auto root = wrapping_boxes(tree, style, boxes);
+    REQUIRE(tree.compute_layout(root, Size<AvailableSpace>::max_content()).has_value());
+    near(tree.layout(root).size.width, 316);
+    near(tree.layout(root).size.height, 56);
+    near(tree.layout(boxes[2]).location.x, 8);
+    near(tree.layout(boxes[2]).location.y, 28);
+}
+
+// A wrapping row offered a definite width fills it, padding included (Chrome:
+// 360 with or without a 360 max width). This also lets the capped-root path see
+// that the cap binds.
+TEST_CASE("Production wrapping roots in a definite space keep their padding",
+          "[production][flex][wrap-insets]") {
+    for (const bool capped : {false, true}) {
+        CAPTURE(capped);
+        Tree tree;
+        Style style;
+        style.flex_wrap = FlexWrap::Wrap;
+        if (capped)
+            style.max_size.width = LengthPercentageAuto::length(360);
+        std::vector<NodeId> boxes;
+        const auto root = wrapping_boxes(tree, style, boxes);
+        REQUIRE(tree.compute_layout(root,
+                                    {AvailableSpace::definite(360), AvailableSpace::max_content()})
+                    .has_value());
+        near(tree.layout(root).size.width, 360);
+        near(tree.layout(root).size.height, 56);
+        near(tree.layout(boxes[2]).location.x, 8);
+        near(tree.layout(boxes[2]).location.y, 28);
+    }
+}
+
+// The same for balanced lines, which have no browser equivalent: they fill the
+// definite width as plain wrapping does.
+TEST_CASE("Production balanced roots in a definite space keep their padding",
+          "[production][flex][wrap-insets]") {
+    Tree tree;
+    Style style;
+    style.flex_wrap = FlexWrap::Balance;
+    std::vector<NodeId> boxes;
+    const auto root = wrapping_boxes(tree, style, boxes);
+    REQUIRE(
+        tree.compute_layout(root, {AvailableSpace::definite(360), AvailableSpace::max_content()})
+            .has_value());
+    near(tree.layout(root).size.width, 360);
+    near(tree.layout(root).size.height, 56);
+}
+
+// Nested: a wrapping row offered 400px by an align-start column fills it
+// (Chrome: 400).
+TEST_CASE("Production wrapping items in a definite space keep their padding",
+          "[production][flex][wrap-insets]") {
+    Tree tree;
+    Style style;
+    style.flex_wrap = FlexWrap::Wrap;
+    std::vector<NodeId> boxes;
+    const auto row = wrapping_boxes(tree, style, boxes);
+    Style parent;
+    parent.display = Display::Flex;
+    parent.flex_direction = FlexDirection::Column;
+    parent.align_items = AlignItems::start();
+    parent.size.width = Dimension::length(400);
+    const auto root = tree.new_with_children(parent, std::vector{row}).value();
+    REQUIRE(tree.compute_layout(root, Size<AvailableSpace>::max_content()).has_value());
+    near(tree.layout(row).size.width, 400);
+    near(tree.layout(row).size.height, 56);
+    near(tree.layout(boxes[2]).location.y, 28);
 }
 
 TEST_CASE("Production early intrinsic flex sizing still finalizes percentage gaps",
